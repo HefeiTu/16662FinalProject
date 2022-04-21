@@ -18,6 +18,12 @@ class Detection:
         self.cv_bridge = CvBridge()
         self.azure_kinect_intrinsics = CameraIntrinsics.load("/home/student/team6/16662FinalProject/calib/azure_kinect.intr")
         self.azure_kinect_to_world_transform = RigidTransform.load("/home/student/team6/16662FinalProject/calib/azure_kinect_overhead/azure_kinect_overhead_to_world.tf")    
+        
+        self.color_thresholds = {
+            "red": [np.array([160, 59, 20]), np.array([179, 255, 255])],
+            "green": [np.array([70,69,20]), np.array([83,255,255])],
+            "blue": [np.array([102, 7, 28]), np.array([111, 196, 255])]
+        }
 
     def fetch_rgb_image(self):
         print("Fetching rgb image")
@@ -85,16 +91,14 @@ class Detection:
                                                                         self.azure_kinect_to_world_transform)
         object_center_pose = current_pose
         object_center_pose.rotation = object_center_pose.rotation @ np.array([[0,1,0], [0,0,-1], [-1,0,0]])
-        hardcoded_offset = 0.01
-        object_z_height = 0.2
+        hardcoded_offset = 0.0255
+        object_z_height = 0.2575
         object_center_pose.translation = [object_center_point_in_world[0], object_center_point_in_world[1] + hardcoded_offset, object_z_height]
         return object_center_pose
         
-    def get_bottle_pose(self, current_pose):
+    def get_bottle_pose(self, current_pose, color):
         rgb_image = self.fetch_rgb_image()
-        gLower = np.array([70,69,20])
-        gUpper = np.array([83,255,255])
-        bottle_center = self.get_bottle_center(rgb_image, gLower, gUpper)
+        bottle_center = self.get_bottle_center(rgb_image, self.color_thresholds[color][0], self.color_thresholds[color][1])
         return self.transform_pose_to_world(bottle_center, current_pose)
 
 class ActionManager:
@@ -109,16 +113,18 @@ class ActionManager:
 
         # State
         self.bottles = []
-        self.cup_pose = [0.4, 0, 0]
+        self.cup_pose = [0.5, 0, 0]
+        self.mixer_pose = [0.52, -0.2, 0.1275]
 
     def reset(self):
         print("Resetting!")
-        self.fa.open_gripper()
         self.fa.reset_joints()
         self.fa.open_gripper()
 
     def update_bottle_poses(self):
-        self.bottles.append(self.detection.get_bottle_pose(self.fa.get_pose()))
+        self.bottles.append(self.detection.get_bottle_pose(self.fa.get_pose(), color='red'))
+        self.bottles.append(self.detection.get_bottle_pose(self.fa.get_pose(), color='green'))
+        # self.bottles.append(self.detection.get_bottle_pose(self.fa.get_pose(), color='blue'))
 
     def dispense_drink(self, bottle_idx):
         bottle_pose = self.bottles[bottle_idx]
@@ -132,60 +138,13 @@ class ActionManager:
         self.reset()
         self.update_bottle_poses()
         self.dispense_drink(0)
+        self.dispense_drink(1)
+        # self.dispense_drink(2)
+        self.fa.reset_joints()
+        self.action_list.grab_mixer(self.mixer_pose)
+        self.action_list.goto_cup_mixing(self.mixer_pose, self.cup_pose)
         
 if __name__ == "__main__":
     manager = ActionManager()
     manager.run()
     manager.reset()
-
-    
-    # reset franka to its home joints
-    # fa.reset_joints()
-
-    # # read functions
-    # T_ee_world = fa.get_pose()
-    # print('Translation: {} | Rotation: {}'.format(T_ee_world.translation, T_ee_world.quaternion))
-
-    # joints = fa.get_joints()
-    # print('Joints: {}'.format(joints))
-
-    # gripper_width = fa.get_gripper_width()
-    # print('Gripper width: {}'.format(gripper_width))
-
-    # # gripper controls
-    # print('Closing gripper')
-    # fa.close_gripper()
-
-    # print('Opening gripper to a specified position')
-    # fa.goto_gripper(0.02)
-
-    # print('Opening gripper all the way')
-    # fa.open_gripper()
-
-    # # joint controls
-    # print('Rotating last joint')
-    # joints = fa.get_joints()
-    # joints[6] += np.deg2rad(45)
-    # fa.goto_joints(joints)
-    # joints[6] -= np.deg2rad(45)
-    # fa.goto_joints(joints)
-
-    # # end-effector pose control
-    # print('Translation')
-    # T_ee_world = fa.get_pose()
-    # T_ee_world.translation += [0.1, 0, 0.1]
-    # fa.goto_pose(T_ee_world)
-    # T_ee_world.translation -= [0.1, 0, 0.1]
-    # fa.goto_pose(T_ee_world)
-
-    # print('Rotation in end-effector frame')
-    # T_ee_rot = RigidTransform(
-    #     rotation=RigidTransform.x_axis_rotation(np.deg2rad(45)),
-    #     from_frame='franka_tool', to_frame='franka_tool'
-    # )
-    # T_ee_world_target = T_ee_world * T_ee_rot
-    # fa.goto_pose(T_ee_world_target)
-    # fa.goto_pose(T_ee_world)
-
-    # # reset franka back to home
-    # fa.reset_joints()

@@ -70,7 +70,7 @@ class ActionList:
         self.fa.goto_pose(bottle_pose, 5, force_thresholds=[10, 10, 10, 10, 10, 10])
         self.fa.publish_joints()
         # close gripper
-        self.fa.goto_gripper(0.045, grasp=True, force=10.0)
+        self.fa.goto_gripper(0.045, grasp=True, force=100.0)
         # self.fa.close_gripper()
 
         return True
@@ -87,21 +87,67 @@ class ActionList:
 
     def pour_drink(self, cup_pose):
         print("Pouring drink")
-        pouring_angle = 179 # deg
-        pouring_time = 5 #s
+        pouring_angle = 120 # deg
+        pouring_time = 8 #s
 
         pour_pose = self.fa.get_pose()
         pour_pose.translation[:2] = cup_pose[:2]
         R = RigidTransform(rotation=RigidTransform.z_axis_rotation(np.deg2rad(pouring_angle)), from_frame='franka_tool', to_frame='franka_tool')
         pour_pose = pour_pose * R
-        self.fa.goto_pose(pour_pose, pouring_time, force_thresholds=[10, 10, 20, 10, 10, 10], buffer_time=5)
+        self.fa.goto_pose(pour_pose, pouring_time, force_thresholds=[100, 100, 100, 100, 100, 100], buffer_time=5)
         return True
 
     def return_bottle(self, bottle_pose):
         # Return the bottle to the initial pose
-        self.fa.goto_pose(self.near_cup_pose, 2, force_thresholds=[10, 10, 20, 10, 10, 10])
-        self.fa.goto_pose(self.lift_bottle_pose, 2, force_thresholds=[10, 10, 10, 10, 10, 10])
+        self.fa.goto_pose(self.near_cup_pose, 4, force_thresholds=[10, 10, 20, 10, 10, 10])
+        self.fa.goto_pose(self.lift_bottle_pose, 4, force_thresholds=[10, 10, 10, 10, 10, 10])
         self.fa.goto_pose(self.bottle_pose, 5, force_thresholds=[10, 10, 20, 10, 10, 10])
         self.fa.open_gripper()
-        self.fa.goto_pose(self.near_bottle_pose, 2, force_thresholds=[10, 10, 10, 10, 10, 10])
+        self.fa.goto_pose(self.near_bottle_pose, 3, force_thresholds=[10, 10, 10, 10, 10, 10])
         return True
+
+    def grab_mixer(self, relative_mixer_pose):
+        mixer_pose = self.fa.get_pose()
+        mixer_pose.translation = relative_mixer_pose
+        self.mixer_pose = mixer_pose.copy()
+        self.fa.goto_pose(mixer_pose, 5, force_thresholds=[10, 10, 10, 10, 10, 10])
+        self.fa.publish_joints()
+        self.fa.goto_gripper(0.04, grasp=True, force=5.0)
+        
+    def grab_mixer(self, relative_mixer_pose):
+        mixer_pose = self.fa.get_pose()
+        mixer_pose.translation = relative_mixer_pose
+        self.mixer_pose = mixer_pose.copy()
+        self.fa.goto_pose(mixer_pose, 5, force_thresholds=[10, 10, 10, 10, 10, 10])
+        self.fa.publish_joints()
+        self.fa.goto_gripper(0.04, grasp=True, force=5.0)
+
+    def goto_cup_mixing(self, relative_mixer_pose, cup_pose):
+        mixer_pose = self.fa.get_pose()
+        mixer_pose.translation = [relative_mixer_pose[0], relative_mixer_pose[1], 0.5]
+        self.fa.goto_pose(mixer_pose, 5, force_thresholds=[10, 10, 10, 10, 10, 10])
+
+        cup_mixing_pose = self.fa.get_pose()
+        cup_mixing_pose.translation = [cup_pose[0] + 0.05, cup_pose[1], 0.3]
+        self.fa.goto_pose(cup_mixing_pose, 5)
+
+        cup_mixing_pose = self.fa.get_pose()
+        cup_mixing_pose.translation = [cup_pose[0] + 0.05, cup_pose[1], 0.12]
+        self.fa.goto_pose(cup_mixing_pose, 5)
+
+        cup_mixing_pose = self.fa.get_pose()
+        cup_mixing_pose.translation = [cup_pose[0] + 0.05, cup_pose[1], 0.12]
+        R = RigidTransform(rotation=RigidTransform.z_axis_rotation(np.deg2rad(179)), from_frame='franka_tool', to_frame='franka_tool')
+        cup_mixing_pose = cup_mixing_pose * R
+        self.fa.goto_pose(cup_mixing_pose, 2)
+
+        cup_mixing_pose = self.fa.get_pose()
+        cup_mixing_pose.translation = [cup_pose[0] + 0.05, cup_pose[1], 0.12]
+        R = RigidTransform(rotation=RigidTransform.z_axis_rotation(np.deg2rad(-179)), from_frame='franka_tool', to_frame='franka_tool')
+        cup_mixing_pose = cup_mixing_pose * R
+        self.fa.goto_pose(cup_mixing_pose, 2)
+
+        self.fa.open_gripper()
+        cup_mixing_pose = self.fa.get_pose()
+        cup_mixing_pose.translation = [cup_pose[0] + 0.05, cup_pose[1], 0.3]
+        self.fa.goto_pose(cup_mixing_pose, 5)
